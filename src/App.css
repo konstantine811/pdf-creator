@@ -1,0 +1,47 @@
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-bar {
+  border-bottom: 1px solid rgba(214, 215, 133, 0.12);
+  backdrop-filter: blur(10px);
+  background: rgba(16, 16, 14, 0.82) !important;
+}
+
+.document-preview-panel {
+  border: 1px solid rgba(214, 215, 133, 0.14);
+  background: #2a2a26 !important;
+  overflow: hidden;
+}
+
+.document-preview-panel--empty {
+  background: transparent !important;
+}
+
+.document-preview-scroll {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(214, 215, 133, 0.06), transparent 42%),
+    #2a2a26;
+  scrollbar-gutter: stable;
+}
+
+.document-preview-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.document-preview-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.document-preview-scroll::-webkit-scrollbar-thumb {
+  background: rgba(214, 215, 133, 0.35);
+  border-radius: 999px;
+}
+
+.document-page {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.document-page--dragging {
+  transform: rotate(1deg);
+}
