@@ -1,5 +1,6 @@
 import * as pdfjs from 'pdfjs-dist'
-import type { PageItem } from '../types'
+import type { FitMode, PageItem } from '../types'
+import { compositePageContent } from './pageCompositor'
 
 const renderCache = new Map<string, string>()
 
@@ -77,24 +78,29 @@ async function renderImagePage(
 export async function renderPagePreview(
   page: PageItem,
   targetWidth: number,
+  fitMode: FitMode = 'a4-fit',
+  includeAnnotations = true,
 ): Promise<string> {
   const pixelRatio = getPreviewPixelRatio()
   const renderWidth = Math.round(targetWidth * pixelRatio)
   const key = cacheKey(page.id, renderWidth)
   const cached = renderCache.get(key)
-  if (cached) return cached
+  let baseDataUrl: string
 
-  let dataUrl: string
-  if (page.type === 'pdf' && page.pdfBytes && page.pageIndex !== undefined) {
-    dataUrl = await renderPdfPage(page.pdfBytes, page.pageIndex, renderWidth)
-  } else if (page.imageBytes && page.width && page.height) {
-    dataUrl = await renderImagePage(page, renderWidth)
+  if (cached) {
+    baseDataUrl = cached
   } else {
-    dataUrl = page.thumbnailUrl
+    if (page.type === 'pdf' && page.pdfBytes && page.pageIndex !== undefined) {
+      baseDataUrl = await renderPdfPage(page.pdfBytes, page.pageIndex, renderWidth)
+    } else if (page.imageBytes && page.width && page.height) {
+      baseDataUrl = await renderImagePage(page, renderWidth)
+    } else {
+      baseDataUrl = page.thumbnailUrl
+    }
+    renderCache.set(key, baseDataUrl)
   }
 
-  renderCache.set(key, dataUrl)
-  return dataUrl
+  return compositePageContent(page, baseDataUrl, fitMode, includeAnnotations)
 }
 
 export function clearPageRenderCache(pageIds?: string[]): void {

@@ -82,6 +82,7 @@ function SortablePageCard({ page, index, onRemove }: PageCardProps) {
             maxWidth: '100%',
             maxHeight: '100%',
             objectFit: 'contain',
+            transform: page.rotation ? `rotate(${page.rotation}deg)` : undefined,
           }}
         />
         <Chip

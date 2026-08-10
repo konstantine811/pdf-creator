@@ -1,5 +1,7 @@
 import { PDFDocument } from 'pdf-lib'
 import type { FitMode, PageItem } from '../types'
+import { pageHasAnnotations } from './pageCompositor'
+import { renderPagePreview } from './pageRenderer'
 import { A4 } from './pageSizes'
 
 function fitDimensions(
@@ -17,6 +19,48 @@ function fitDimensions(
     x: (targetWidth - width) / 2,
     y: (targetHeight - height) / 2,
   }
+}
+
+async function dataUrlToBytes(dataUrl: string): Promise<Uint8Array> {
+  const response = await fetch(dataUrl)
+  const buffer = await response.arrayBuffer()
+  return new Uint8Array(buffer)
+}
+
+async function drawAnnotatedPage(
+  outputDoc: PDFDocument,
+  item: PageItem,
+  fitMode: FitMode,
+): Promise<void> {
+  const exportWidth = fitMode === 'a4-fit' ? 1240 : Math.max(item.width ?? 1240, 1240)
+  const dataUrl = await renderPagePreview(item, exportWidth, fitMode)
+  const bytes = await dataUrlToBytes(dataUrl)
+  const image = await outputDoc.embedPng(bytes)
+
+  const pageSize =
+    fitMode === 'a4-fit'
+      ? { width: A4.width, height: A4.height }
+      : { width: image.width, height: image.height }
+
+  const page = outputDoc.addPage([pageSize.width, pageSize.height])
+
+  if (fitMode === 'a4-fit') {
+    const { width, height, x, y } = fitDimensions(
+      image.width,
+      image.height,
+      A4.width,
+      A4.height,
+    )
+    page.drawImage(image, { x, y, width, height })
+    return
+  }
+
+  page.drawImage(image, {
+    x: 0,
+    y: 0,
+    width: image.width,
+    height: image.height,
+  })
 }
 
 async function drawPdfPage(
@@ -108,6 +152,11 @@ export async function exportPagesToPdf(
   const outputDoc = await PDFDocument.create()
 
   for (const item of pages) {
+    if (pageHasAnnotations(item) || (item.rotation ?? 0) !== 0) {
+      await drawAnnotatedPage(outputDoc, item, fitMode)
+      continue
+    }
+
     if (item.type === 'pdf') {
       await drawPdfPage(outputDoc, item, fitMode)
     } else {

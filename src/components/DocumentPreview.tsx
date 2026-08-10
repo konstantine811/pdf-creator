@@ -18,6 +18,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
+import RotateLeftIcon from '@mui/icons-material/RotateLeft'
+import RotateRightIcon from '@mui/icons-material/RotateRight'
 import {
   Box,
   Chip,
@@ -25,11 +27,21 @@ import {
   IconButton,
   Paper,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import { useEffect, useRef, useState } from 'react'
-import type { FitMode, PageItem } from '../types'
+import type {
+  AnnotationTool,
+  DrawStroke,
+  FitMode,
+  PageItem,
+  PageTextAnnotation,
+  TextStyle,
+} from '../types'
+import PageAnnotationLayer from './PageAnnotationLayer'
 import { renderPagePreview } from '../utils/pageRenderer'
+import { getRotatedAspectRatio } from '../utils/pageRotation'
 import { A4 } from '../utils/pageSizes'
 
 const PREVIEW_MAX_WIDTH = 820
@@ -39,7 +51,7 @@ function getPageAspectRatio(page: PageItem, fitMode: FitMode): number {
     return A4.width / A4.height
   }
   if (page.width && page.height) {
-    return page.width / page.height
+    return getRotatedAspectRatio(page.width, page.height, page.rotation ?? 0)
   }
   return A4.width / A4.height
 }
@@ -48,9 +60,39 @@ interface PreviewPageContentProps {
   page: PageItem
   fitMode: FitMode
   containerWidth: number
+  tool: AnnotationTool
+  selected: boolean
+  penColor: string
+  penWidth: number
+  textStyle: TextStyle
+  activeTextId: string | null
+  editingTextId: string | null
+  onSelect: () => void
+  onActiveTextChange: (id: string | null) => void
+  onEditingTextChange: (id: string | null) => void
+  onDeselectText: () => void
+  onUpdateStrokes: (strokes: DrawStroke[]) => void
+  onUpdateTextAnnotations: (annotations: PageTextAnnotation[]) => void
 }
 
-function PreviewPageContent({ page, fitMode, containerWidth }: PreviewPageContentProps) {
+function PreviewPageContent({
+  page,
+  fitMode,
+  containerWidth,
+  tool,
+  selected,
+  penColor,
+  penWidth,
+  textStyle,
+  activeTextId,
+  editingTextId,
+  onSelect,
+  onActiveTextChange,
+  onEditingTextChange,
+  onDeselectText,
+  onUpdateStrokes,
+  onUpdateTextAnnotations,
+}: PreviewPageContentProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -58,12 +100,7 @@ function PreviewPageContent({ page, fitMode, containerWidth }: PreviewPageConten
     let cancelled = false
     setLoading(true)
 
-    const contentWidth =
-      fitMode === 'a4-fit'
-        ? containerWidth
-        : containerWidth
-
-    renderPagePreview(page, Math.max(480, Math.round(contentWidth)))
+    renderPagePreview(page, Math.max(480, Math.round(containerWidth)), fitMode, false)
       .then((url) => {
         if (!cancelled) {
           setPreviewUrl(url)
@@ -80,10 +117,11 @@ function PreviewPageContent({ page, fitMode, containerWidth }: PreviewPageConten
     return () => {
       cancelled = true
     }
-  }, [page, fitMode, containerWidth])
+  }, [page.id, page.type, page.thumbnailUrl, page.rotation, fitMode, containerWidth])
 
   return (
     <Box
+      onClick={onSelect}
       sx={{
         position: 'relative',
         width: '100%',
@@ -93,10 +131,16 @@ function PreviewPageContent({ page, fitMode, containerWidth }: PreviewPageConten
         justifyContent: 'center',
         bgcolor: '#fff',
         overflow: 'hidden',
+        cursor:
+          tool === 'text' && selected
+            ? 'text'
+            : tool === 'pen' && selected
+              ? 'crosshair'
+              : 'default',
       }}
     >
       {loading && (
-        <CircularProgress size={28} sx={{ position: 'absolute' }} />
+        <CircularProgress size={28} sx={{ position: 'absolute', zIndex: 1 }} />
       )}
       {previewUrl && (
         <Box
@@ -110,7 +154,26 @@ function PreviewPageContent({ page, fitMode, containerWidth }: PreviewPageConten
             opacity: loading ? 0 : 1,
             transition: 'opacity 0.2s',
             imageRendering: 'auto',
+            pointerEvents: 'none',
           }}
+        />
+      )}
+
+      {!loading && (
+        <PageAnnotationLayer
+          page={page}
+          tool={tool}
+          selected={selected}
+          penColor={penColor}
+          penWidth={penWidth}
+          textStyle={textStyle}
+          activeTextId={activeTextId}
+          editingTextId={editingTextId}
+          onActiveTextChange={onActiveTextChange}
+          onEditingTextChange={onEditingTextChange}
+          onDeselectText={onDeselectText}
+          onUpdateStrokes={onUpdateStrokes}
+          onUpdateTextAnnotations={onUpdateTextAnnotations}
         />
       )}
     </Box>
@@ -122,7 +185,21 @@ interface SortablePreviewPageProps {
   index: number
   fitMode: FitMode
   containerWidth: number
+  tool: AnnotationTool
+  selected: boolean
+  penColor: string
+  penWidth: number
+  textStyle: TextStyle
+  activeTextId: string | null
+  editingTextId: string | null
   onRemove: (id: string) => void
+  onRotatePage: (id: string, delta: number) => void
+  onSelect: (id: string) => void
+  onActiveTextChange: (id: string | null) => void
+  onEditingTextChange: (id: string | null) => void
+  onDeselectText: () => void
+  onUpdateStrokes: (id: string, strokes: DrawStroke[]) => void
+  onUpdateTextAnnotations: (id: string, annotations: PageTextAnnotation[]) => void
 }
 
 function SortablePreviewPage({
@@ -130,7 +207,21 @@ function SortablePreviewPage({
   index,
   fitMode,
   containerWidth,
+  tool,
+  selected,
+  penColor,
+  penWidth,
+  textStyle,
+  activeTextId,
+  editingTextId,
   onRemove,
+  onRotatePage,
+  onSelect,
+  onActiveTextChange,
+  onEditingTextChange,
+  onDeselectText,
+  onUpdateStrokes,
+  onUpdateTextAnnotations,
 }: SortablePreviewPageProps) {
   const {
     attributes,
@@ -139,7 +230,7 @@ function SortablePreviewPage({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: page.id })
+  } = useSortable({ id: page.id, disabled: tool !== 'select' })
 
   const aspectRatio = getPageAspectRatio(page, fitMode)
 
@@ -165,9 +256,10 @@ function SortablePreviewPage({
         className="document-page"
         sx={{
           overflow: 'hidden',
-          border: '1px solid',
-          borderColor: isDragging ? 'primary.main' : 'rgba(0,0,0,0.08)',
+          border: '2px solid',
+          borderColor: selected ? 'primary.main' : isDragging ? 'primary.main' : 'rgba(0,0,0,0.08)',
           bgcolor: '#fff',
+          boxShadow: selected ? '0 0 0 1px rgba(214, 215, 133, 0.25)' : undefined,
         }}
       >
         <Stack
@@ -176,28 +268,28 @@ function SortablePreviewPage({
           sx={{
             px: 1,
             py: 0.75,
-            bgcolor: 'rgba(0,0,0,0.04)',
+            bgcolor: selected ? 'rgba(214, 215, 133, 0.12)' : 'rgba(0,0,0,0.04)',
             borderBottom: '1px solid rgba(0,0,0,0.08)',
             alignItems: 'center',
           }}
         >
           <Box
-            {...attributes}
-            {...listeners}
+            {...(tool === 'select' ? { ...attributes, ...listeners } : {})}
             sx={{
               display: 'flex',
               alignItems: 'center',
-              cursor: isDragging ? 'grabbing' : 'grab',
+              cursor: tool === 'select' ? (isDragging ? 'grabbing' : 'grab') : 'default',
               color: 'text.secondary',
-              touchAction: 'none',
+              touchAction: tool === 'select' ? 'none' : 'auto',
               p: 0.5,
               borderRadius: 1,
-              '&:hover': { bgcolor: 'rgba(0,0,0,0.06)' },
+              opacity: tool === 'select' ? 1 : 0.35,
+              '&:hover': tool === 'select' ? { bgcolor: 'rgba(0,0,0,0.06)' } : undefined,
             }}
           >
             <DragIndicatorIcon fontSize="small" />
           </Box>
-          <Chip size="small" label={`Сторінка ${index + 1}`} />
+          <Chip size="small" label={`Сторінка ${index + 1}`} color={selected ? 'primary' : 'default'} />
           <Typography
             variant="caption"
             sx={{
@@ -211,6 +303,32 @@ function SortablePreviewPage({
           >
             {page.label}
           </Typography>
+          {(page.rotation ?? 0) !== 0 && (
+            <Chip
+              size="small"
+              variant="outlined"
+              label={`${page.rotation}°`}
+              sx={{ height: 22, fontSize: '0.7rem' }}
+            />
+          )}
+          <Tooltip title="Повернути проти годинникової (−45°)">
+            <IconButton
+              size="small"
+              aria-label="Повернути ліворуч"
+              onClick={() => onRotatePage(page.id, -45)}
+            >
+              <RotateLeftIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Повернути за годинниковою (+45°)">
+            <IconButton
+              size="small"
+              aria-label="Повернути праворуч"
+              onClick={() => onRotatePage(page.id, 45)}
+            >
+              <RotateRightIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <IconButton
             size="small"
             aria-label="Видалити сторінку"
@@ -232,6 +350,21 @@ function SortablePreviewPage({
             page={page}
             fitMode={fitMode}
             containerWidth={containerWidth}
+            tool={tool}
+            selected={selected}
+            penColor={penColor}
+            penWidth={penWidth}
+            textStyle={textStyle}
+            activeTextId={selected ? activeTextId : null}
+            editingTextId={selected ? editingTextId : null}
+            onSelect={() => onSelect(page.id)}
+            onActiveTextChange={onActiveTextChange}
+            onEditingTextChange={onEditingTextChange}
+            onDeselectText={onDeselectText}
+            onUpdateStrokes={(strokes) => onUpdateStrokes(page.id, strokes)}
+            onUpdateTextAnnotations={(annotations) =>
+              onUpdateTextAnnotations(page.id, annotations)
+            }
           />
         </Box>
       </Paper>
@@ -294,15 +427,43 @@ function DragPreview({ page, index, fitMode, containerWidth }: DragPreviewProps)
 interface DocumentPreviewProps {
   pages: PageItem[]
   fitMode: FitMode
+  tool: AnnotationTool
+  selectedPageId: string | null
+  penColor: string
+  penWidth: number
+  textStyle: TextStyle
+  activeTextId: string | null
+  editingTextId: string | null
   onReorder: (activeId: string, overId: string) => void
   onRemove: (id: string) => void
+  onRotatePage: (id: string, delta: number) => void
+  onSelectPage: (id: string) => void
+  onActiveTextChange: (id: string | null) => void
+  onEditingTextChange: (id: string | null) => void
+  onDeselectText: () => void
+  onUpdateStrokes: (id: string, strokes: DrawStroke[]) => void
+  onUpdateTextAnnotations: (id: string, annotations: PageTextAnnotation[]) => void
 }
 
 export default function DocumentPreview({
   pages,
   fitMode,
+  tool,
+  selectedPageId,
+  penColor,
+  penWidth,
+  textStyle,
+  activeTextId,
+  editingTextId,
   onReorder,
   onRemove,
+  onRotatePage,
+  onSelectPage,
+  onActiveTextChange,
+  onEditingTextChange,
+  onDeselectText,
+  onUpdateStrokes,
+  onUpdateTextAnnotations,
 }: DocumentPreviewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(PREVIEW_MAX_WIDTH)
@@ -328,13 +489,14 @@ export default function DocumentPreview({
   }, [])
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (tool !== 'select') return
     setActiveId(String(event.active.id))
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     setActiveId(null)
-    if (!over || active.id === over.id) return
+    if (tool !== 'select' || !over || active.id === over.id) return
     onReorder(String(active.id), String(over.id))
   }
 
@@ -381,7 +543,11 @@ export default function DocumentPreview({
           Перегляд документа
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          Перетягніть сторінки за ручку ≡, щоб змінити порядок
+          {tool === 'select'
+            ? 'Перетягніть сторінки за ≡. Ctrl+Z — повернути видалену. Стрілки — поворот на 45°'
+            : tool === 'text'
+              ? 'Клікніть для нового тексту. Виділений блок — редагуйте в панелі зверху'
+              : 'Малюйте олівцем на обраній сторінці'}
         </Typography>
       </Stack>
 
@@ -413,7 +579,21 @@ export default function DocumentPreview({
                 index={index}
                 fitMode={fitMode}
                 containerWidth={containerWidth}
+                tool={tool}
+                selected={page.id === selectedPageId}
+                penColor={penColor}
+                penWidth={penWidth}
+                textStyle={textStyle}
+                activeTextId={activeTextId}
+                editingTextId={editingTextId}
                 onRemove={onRemove}
+                onRotatePage={onRotatePage}
+                onSelect={onSelectPage}
+                onActiveTextChange={onActiveTextChange}
+                onEditingTextChange={onEditingTextChange}
+                onDeselectText={onDeselectText}
+                onUpdateStrokes={onUpdateStrokes}
+                onUpdateTextAnnotations={onUpdateTextAnnotations}
               />
             ))}
           </SortableContext>
