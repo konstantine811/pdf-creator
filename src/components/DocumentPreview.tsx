@@ -144,6 +144,7 @@ function PreviewPageContent({
       )}
       {previewUrl && (
         <Box
+          key={`${page.id}-${page.rotation ?? 0}`}
           component="img"
           src={previewUrl}
           alt={page.label}
@@ -294,6 +295,7 @@ function SortablePreviewPage({
             variant="caption"
             sx={{
               flex: 1,
+              minWidth: 0,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -303,36 +305,109 @@ function SortablePreviewPage({
           >
             {page.label}
           </Typography>
-          {(page.rotation ?? 0) !== 0 && (
-            <Chip
-              size="small"
-              variant="outlined"
-              label={`${page.rotation}°`}
-              sx={{ height: 22, fontSize: '0.7rem' }}
-            />
-          )}
-          <Tooltip title="Повернути проти годинникової (−45°)">
-            <IconButton
-              size="small"
-              aria-label="Повернути ліворуч"
-              onClick={() => onRotatePage(page.id, -45)}
-            >
-              <RotateLeftIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Повернути за годинниковою (+45°)">
-            <IconButton
-              size="small"
-              aria-label="Повернути праворуч"
-              onClick={() => onRotatePage(page.id, 45)}
-            >
-              <RotateRightIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`${page.rotation ?? 0}°`}
+            sx={{
+              height: 24,
+              fontSize: '0.72rem',
+              flexShrink: 0,
+              fontWeight: 600,
+              borderColor: 'rgba(0,0,0,0.25)',
+            }}
+          />
+          <Stack
+            direction="row"
+            spacing={0.25}
+            sx={{
+              flexShrink: 0,
+              alignItems: 'center',
+              border: '1px solid rgba(0,0,0,0.18)',
+              borderRadius: 1,
+              bgcolor: 'rgba(255,255,255,0.65)',
+              px: 0.25,
+            }}
+          >
+            <Tooltip title="Повернути на 90° проти годинникової">
+              <IconButton
+                size="small"
+                aria-label="Повернути на 90 градусів ліворуч"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onRotatePage(page.id, -90)
+                }}
+                sx={{ color: 'text.primary' }}
+              >
+                <RotateLeftIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Typography variant="caption" sx={{ fontWeight: 700, px: 0.25, userSelect: 'none' }}>
+              90°
+            </Typography>
+            <Tooltip title="Повернути на 90° за годинниковою">
+              <IconButton
+                size="small"
+                aria-label="Повернути на 90 градусів праворуч"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onRotatePage(page.id, 90)
+                }}
+                sx={{ color: 'text.primary' }}
+              >
+                <RotateRightIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+          <Stack
+            direction="row"
+            spacing={0.25}
+            sx={{
+              flexShrink: 0,
+              alignItems: 'center',
+              border: '1px solid rgba(0,0,0,0.12)',
+              borderRadius: 1,
+              bgcolor: 'rgba(255,255,255,0.45)',
+              px: 0.25,
+            }}
+          >
+            <Tooltip title="Додатковий поворот −45°">
+              <IconButton
+                size="small"
+                aria-label="Повернути на 45 градусів ліворуч"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onRotatePage(page.id, -45)
+                }}
+                sx={{ color: 'text.secondary' }}
+              >
+                <RotateLeftIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+            <Typography variant="caption" color="text.secondary" sx={{ px: 0.25, userSelect: 'none' }}>
+              45°
+            </Typography>
+            <Tooltip title="Додатковий поворот +45°">
+              <IconButton
+                size="small"
+                aria-label="Повернути на 45 градусів праворуч"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onRotatePage(page.id, 45)
+                }}
+                sx={{ color: 'text.secondary' }}
+              >
+                <RotateRightIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </Stack>
           <IconButton
             size="small"
             aria-label="Видалити сторінку"
-            onClick={() => onRemove(page.id)}
+            onClick={(event) => {
+              event.stopPropagation()
+              onRemove(page.id)
+            }}
           >
             <DeleteOutlineOutlinedIcon fontSize="small" />
           </IconButton>
@@ -544,7 +619,7 @@ export default function DocumentPreview({
         </Typography>
         <Typography variant="caption" color="text.secondary">
           {tool === 'select'
-            ? 'Перетягніть сторінки за ≡. Ctrl+Z — повернути видалену. Стрілки — поворот на 45°'
+            ? 'Поворот: блок ↺ 90° ↻ біля назви файлу (↺ 45° ↻ — точніше). Кут показано в °'
             : tool === 'text'
               ? 'Клікніть для нового тексту. Виділений блок — редагуйте в панелі зверху'
               : 'Малюйте олівцем на обраній сторінці'}
