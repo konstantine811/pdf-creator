@@ -308,12 +308,10 @@ export default function PageAnnotationLayer({
           >
             <div
               style={{
-                border: showHighlight
-                  ? '2px solid #d6d785'
-                  : '2px solid transparent',
-                borderRadius: 6,
-                background: isActive ? 'rgba(214, 215, 133, 0.16)' : 'rgba(255,255,255,0.04)',
-                overflow: 'hidden',
+                position: 'relative',
+                borderRadius: 4,
+                background: isActive ? 'rgba(214, 215, 133, 0.16)' : 'transparent',
+                outline: showHighlight ? '2px solid #d6d785' : 'none',
                 boxShadow: isActive ? '0 0 0 1px rgba(214, 215, 133, 0.25)' : 'none',
               }}
             >
@@ -324,6 +322,11 @@ export default function PageAnnotationLayer({
                   onPointerUp={handleTextDragEnd}
                   onPointerCancel={handleTextDragEnd}
                   style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    transform: 'translateY(-100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -331,7 +334,7 @@ export default function PageAnnotationLayer({
                     height: 22,
                     cursor: draggingTextRef.current?.id === annotation.id ? 'grabbing' : 'grab',
                     background: 'rgba(214, 215, 133, 0.22)',
-                    borderBottom: '1px solid rgba(214, 215, 133, 0.35)',
+                    borderRadius: '4px 4px 0 0',
                     touchAction: 'none',
                     userSelect: 'none',
                   }}
@@ -340,7 +343,7 @@ export default function PageAnnotationLayer({
                 </div>
               )}
 
-              <div style={{ padding: '4px 8px' }}>
+              <div>
                 {isEditing ? (
                   <textarea
                     autoFocus
@@ -363,9 +366,12 @@ export default function PageAnnotationLayer({
                       }, 120)
                     }}
                     style={{
+                      display: 'block',
                       width: '100%',
                       minWidth: 120,
-                      minHeight: 32,
+                      minHeight: 24,
+                      margin: 0,
+                      padding: 0,
                       border: 'none',
                       outline: 'none',
                       resize: 'both',
@@ -374,18 +380,19 @@ export default function PageAnnotationLayer({
                       fontSize: annotation.fontSize,
                       fontWeight: 600,
                       fontFamily: 'system-ui, -apple-system, sans-serif',
-                      lineHeight: 1.3,
+                      lineHeight: 1.15,
                     }}
                   />
                 ) : (
                   annotation.content.trim() && (
                     <span
                       style={{
+                        display: 'block',
                         color: annotation.color,
                         fontSize: annotation.fontSize,
                         fontWeight: 600,
                         fontFamily: 'system-ui, -apple-system, sans-serif',
-                        lineHeight: 1.3,
+                        lineHeight: 1.15,
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-word',
                       }}
