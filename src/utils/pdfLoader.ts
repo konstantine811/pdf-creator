@@ -184,6 +184,17 @@ function isImageFile(file: File): boolean {
   )
 }
 
+function isWordFile(file: File): boolean {
+  const lower = file.name.toLowerCase()
+  return (
+    lower.endsWith('.doc') ||
+    lower.endsWith('.docx') ||
+    file.type === 'application/msword' ||
+    file.type ===
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  )
+}
+
 function reportProgress(
   onProgress: LoadProgressCallback | undefined,
   current: number,
@@ -241,9 +252,18 @@ export async function loadPagesFromFiles(
 
   reportProgress(onProgress, 0, files.length, '', 'Підготовка файлів…')
 
+  const hasWordOnly =
+    files.some(isWordFile) &&
+    !files.some((file) => isPdfFile(file) || isImageFile(file))
+
   const { supported, totalUnits, pdfPageCounts } = await estimateWorkUnits(files)
 
   if (supported.length === 0) {
+    if (hasWordOnly || files.some(isWordFile)) {
+      throw new Error(
+        'Файли Word (.doc/.docx) не підтримуються напряму. У Word збережіть документ як PDF (Файл → Зберегти як → PDF) і завантажте цей PDF.',
+      )
+    }
     reportProgress(onProgress, 0, 1, '', 'Немає підтримуваних файлів')
     return items
   }
