@@ -28,33 +28,6 @@ function detectMimeType(file: File): string {
   return 'image/jpeg'
 }
 
-function loadImageElement(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error('Не вдалося декодувати зображення'))
-    image.src = url
-  })
-}
-
-function drawToCanvas(
-  img: HTMLImageElement,
-  width: number,
-  height: number,
-): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.max(1, Math.round(width))
-  canvas.height = Math.max(1, Math.round(height))
-  const ctx = canvas.getContext('2d')
-  if (!ctx) {
-    throw new Error('Не вдалося створити canvas')
-  }
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-  return canvas
-}
-
 async function canvasToPngBytes(canvas: HTMLCanvasElement): Promise<Uint8Array> {
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
@@ -68,16 +41,52 @@ async function canvasToPngBytes(canvas: HTMLCanvasElement): Promise<Uint8Array> 
   return new Uint8Array(await blob.arrayBuffer())
 }
 
-function createThumbnailDataUrl(img: HTMLImageElement): string {
+async function rasterizeImageBlob(blob: Blob): Promise<{
+  canvas: HTMLCanvasElement
+  width: number
+  height: number
+}> {
+  // Bake EXIF/orientation into pixels so preview and PDF export match.
+  const bitmap = await createImageBitmap(blob, {
+    imageOrientation: 'from-image',
+  })
+
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, bitmap.width)
+    canvas.height = Math.max(1, bitmap.height)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      throw new Error('Не вдалося створити canvas')
+    }
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(bitmap, 0, 0)
+    return {
+      canvas,
+      width: bitmap.width,
+      height: bitmap.height,
+    }
+  } finally {
+    bitmap.close()
+  }
+}
+
+function createThumbnailFromCanvas(source: HTMLCanvasElement): string {
   const scale = Math.min(
     1,
-    THUMBNAIL_MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight),
+    THUMBNAIL_MAX_SIDE / Math.max(source.width, source.height),
   )
-  const canvas = drawToCanvas(
-    img,
-    img.naturalWidth * scale,
-    img.naturalHeight * scale,
-  )
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(source.width * scale))
+  canvas.height = Math.max(1, Math.round(source.height * scale))
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    return source.toDataURL('image/jpeg', 0.8)
+  }
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(source, 0, 0, canvas.width, canvas.height)
   return canvas.toDataURL('image/jpeg', 0.8)
 }
 
@@ -116,33 +125,20 @@ async function loadImagePage(
 }> {
   const { bytes: sourceBytes, mimeType } = await prepareImageSource(file, onStage)
   const blob = new Blob([Uint8Array.from(sourceBytes)], { type: mimeType })
-  const url = URL.createObjectURL(blob)
 
-  try {
-    onStage?.('Створення мініатюри…')
-    const img = await loadImageElement(url)
-    const thumbnailUrl = createThumbnailDataUrl(img)
+  onStage?.('Нормалізація орієнтації фото…')
+  const { canvas, width, height } = await rasterizeImageBlob(blob)
 
-    const isPdfLibNative = mimeType === 'image/jpeg' || mimeType === 'image/png'
-    let imageBytes: Uint8Array = Uint8Array.from(sourceBytes)
-    let exportMime = mimeType
+  onStage?.('Створення мініатюри…')
+  const thumbnailUrl = createThumbnailFromCanvas(canvas)
+  const imageBytes = await canvasToPngBytes(canvas)
 
-    if (!isPdfLibNative) {
-      onStage?.('Підготовка зображення…')
-      const canvas = drawToCanvas(img, img.naturalWidth, img.naturalHeight)
-      imageBytes = await canvasToPngBytes(canvas)
-      exportMime = 'image/png'
-    }
-
-    return {
-      thumbnailUrl,
-      width: img.naturalWidth,
-      height: img.naturalHeight,
-      imageBytes,
-      mimeType: exportMime,
-    }
-  } finally {
-    URL.revokeObjectURL(url)
+  return {
+    thumbnailUrl,
+    width,
+    height,
+    imageBytes,
+    mimeType: 'image/png',
   }
 }
 

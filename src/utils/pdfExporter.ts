@@ -27,6 +27,42 @@ async function dataUrlToBytes(dataUrl: string): Promise<Uint8Array> {
   return new Uint8Array(buffer)
 }
 
+/**
+ * Export a photo filling the whole A4 page (cover), or full-bleed original size.
+ */
+async function drawImageFullBleed(
+  outputDoc: PDFDocument,
+  item: PageItem,
+  fitMode: FitMode,
+): Promise<void> {
+  if (fitMode === 'a4-fit') {
+    // Rasterize into A4 with cover so the photo fills the page like in the editor.
+    const dataUrl = await renderPagePreview(item, 1240, 'a4-fit', true)
+    const bytes = await dataUrlToBytes(dataUrl)
+    const image = await outputDoc.embedPng(bytes)
+    const page = outputDoc.addPage([A4.width, A4.height])
+    page.drawImage(image, {
+      x: 0,
+      y: 0,
+      width: A4.width,
+      height: A4.height,
+    })
+    return
+  }
+
+  const exportWidth = Math.max(item.width ?? 1240, 1240)
+  const dataUrl = await renderPagePreview(item, exportWidth, 'original', true)
+  const bytes = await dataUrlToBytes(dataUrl)
+  const image = await outputDoc.embedPng(bytes)
+  const page = outputDoc.addPage([image.width, image.height])
+  page.drawImage(image, {
+    x: 0,
+    y: 0,
+    width: image.width,
+    height: image.height,
+  })
+}
+
 async function drawAnnotatedPage(
   outputDoc: PDFDocument,
   item: PageItem,
@@ -99,48 +135,6 @@ async function drawPdfPage(
   })
 }
 
-async function drawImagePage(
-  outputDoc: PDFDocument,
-  item: PageItem,
-  fitMode: FitMode,
-): Promise<void> {
-  if (!item.imageBytes) {
-    throw new Error(`Некоректні дані зображення: ${item.label}`)
-  }
-
-  const mime = item.mimeType ?? 'image/png'
-  const image = mime.includes('jpeg') || mime.includes('jpg')
-    ? await outputDoc.embedJpg(item.imageBytes)
-    : await outputDoc.embedPng(item.imageBytes)
-
-  const sourceWidth = image.width
-  const sourceHeight = image.height
-  const pageSize =
-    fitMode === 'a4-fit'
-      ? { width: A4.width, height: A4.height }
-      : { width: sourceWidth, height: sourceHeight }
-
-  const page = outputDoc.addPage([pageSize.width, pageSize.height])
-
-  if (fitMode === 'a4-fit') {
-    const { width, height, x, y } = fitDimensions(
-      sourceWidth,
-      sourceHeight,
-      A4.width,
-      A4.height,
-    )
-    page.drawImage(image, { x, y, width, height })
-    return
-  }
-
-  page.drawImage(image, {
-    x: 0,
-    y: 0,
-    width: sourceWidth,
-    height: sourceHeight,
-  })
-}
-
 export async function exportPagesToPdf(
   pages: PageItem[],
   fitMode: FitMode,
@@ -152,15 +146,19 @@ export async function exportPagesToPdf(
   const outputDoc = await PDFDocument.create()
 
   for (const item of pages) {
-    if (pageHasAnnotations(item) || (item.rotation ?? 0) !== 0) {
+    // Photos: fill the entire page (no white margins), keep EXIF/rotation via raster path.
+    if (item.type === 'image' && !pageHasAnnotations(item)) {
+      await drawImageFullBleed(outputDoc, item, fitMode)
+      continue
+    }
+
+    if (pageHasAnnotations(item) || (item.rotation ?? 0) !== 0 || (item.scale ?? 1) !== 1) {
       await drawAnnotatedPage(outputDoc, item, fitMode)
       continue
     }
 
     if (item.type === 'pdf') {
       await drawPdfPage(outputDoc, item, fitMode)
-    } else {
-      await drawImagePage(outputDoc, item, fitMode)
     }
   }
 

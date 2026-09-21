@@ -79,9 +79,9 @@ function SortablePageCard({ page, index, onRemove }: PageCardProps) {
           src={page.thumbnailUrl}
           alt={page.label}
           sx={{
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'contain',
+            width: '100%',
+            height: '100%',
+            objectFit: page.type === 'image' ? 'cover' : 'contain',
             transform: page.rotation ? `rotate(${page.rotation}deg)` : undefined,
           }}
         />

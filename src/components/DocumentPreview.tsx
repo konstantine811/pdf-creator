@@ -18,6 +18,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
+import RemoveIcon from '@mui/icons-material/Remove'
+import AddIcon from '@mui/icons-material/Add'
 import RotateLeftIcon from '@mui/icons-material/RotateLeft'
 import RotateRightIcon from '@mui/icons-material/RotateRight'
 import {
@@ -117,7 +119,7 @@ function PreviewPageContent({
     return () => {
       cancelled = true
     }
-  }, [page.id, page.type, page.thumbnailUrl, page.rotation, fitMode, containerWidth])
+  }, [page.id, page.type, page.thumbnailUrl, page.rotation, page.scale, fitMode, containerWidth])
 
   return (
     <Box
@@ -144,7 +146,7 @@ function PreviewPageContent({
       )}
       {previewUrl && (
         <Box
-          key={`${page.id}-${page.rotation ?? 0}`}
+          key={`${page.id}-${page.rotation ?? 0}-${page.scale ?? 1}`}
           component="img"
           src={previewUrl}
           alt={page.label}
@@ -195,6 +197,7 @@ interface SortablePreviewPageProps {
   editingTextId: string | null
   onRemove: (id: string) => void
   onRotatePage: (id: string, delta: number) => void
+  onScalePage: (id: string, delta: number) => void
   onSelect: (id: string) => void
   onActiveTextChange: (id: string | null) => void
   onEditingTextChange: (id: string | null) => void
@@ -217,6 +220,7 @@ function SortablePreviewPage({
   editingTextId,
   onRemove,
   onRotatePage,
+  onScalePage,
   onSelect,
   onActiveTextChange,
   onEditingTextChange,
@@ -317,6 +321,57 @@ function SortablePreviewPage({
               borderColor: 'rgba(0,0,0,0.25)',
             }}
           />
+          <Stack
+            direction="row"
+            spacing={0.25}
+            sx={{
+              flexShrink: 0,
+              alignItems: 'center',
+              border: '1px solid rgba(0,0,0,0.18)',
+              borderRadius: 1,
+              bgcolor: 'rgba(255,255,255,0.65)',
+              px: 0.25,
+            }}
+          >
+            <Tooltip title="Зменшити (−10%)">
+              <span>
+                <IconButton
+                  size="small"
+                  aria-label="Зменшити масштаб"
+                  disabled={(page.scale ?? 1) <= 0.25}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onScalePage(page.id, -0.1)
+                  }}
+                  sx={{ color: 'text.primary' }}
+                >
+                  <RemoveIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Typography
+              variant="caption"
+              sx={{ fontWeight: 700, px: 0.5, minWidth: 40, textAlign: 'center', userSelect: 'none' }}
+            >
+              {Math.round((page.scale ?? 1) * 100)}%
+            </Typography>
+            <Tooltip title="Збільшити (+10%)">
+              <span>
+                <IconButton
+                  size="small"
+                  aria-label="Збільшити масштаб"
+                  disabled={(page.scale ?? 1) >= 4}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onScalePage(page.id, 0.1)
+                  }}
+                  sx={{ color: 'text.primary' }}
+                >
+                  <AddIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
           <Stack
             direction="row"
             spacing={0.25}
@@ -512,6 +567,7 @@ interface DocumentPreviewProps {
   onReorder: (activeId: string, overId: string) => void
   onRemove: (id: string) => void
   onRotatePage: (id: string, delta: number) => void
+  onScalePage: (id: string, delta: number) => void
   onSelectPage: (id: string) => void
   onActiveTextChange: (id: string | null) => void
   onEditingTextChange: (id: string | null) => void
@@ -533,6 +589,7 @@ export default function DocumentPreview({
   onReorder,
   onRemove,
   onRotatePage,
+  onScalePage,
   onSelectPage,
   onActiveTextChange,
   onEditingTextChange,
@@ -663,6 +720,7 @@ export default function DocumentPreview({
                 editingTextId={editingTextId}
                 onRemove={onRemove}
                 onRotatePage={onRotatePage}
+                onScalePage={onScalePage}
                 onSelect={onSelectPage}
                 onActiveTextChange={onActiveTextChange}
                 onEditingTextChange={onEditingTextChange}

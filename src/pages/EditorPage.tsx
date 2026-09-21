@@ -25,6 +25,7 @@ export default function EditorPage() {
     handleReorder,
     handleRemove,
     rotatePage,
+    scalePage,
     updatePageAnnotations,
   } = usePages()
 
@@ -241,6 +242,7 @@ export default function EditorPage() {
           onReorder={handleReorder}
           onRemove={handleRemove}
           onRotatePage={rotatePage}
+          onScalePage={scalePage}
           onSelectPage={handleSelectPage}
           onActiveTextChange={handleActiveTextChange}
           onEditingTextChange={setEditingTextId}

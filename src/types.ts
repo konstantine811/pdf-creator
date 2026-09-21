@@ -37,6 +37,8 @@ export interface PageItem {
   width?: number
   height?: number
   rotation?: number
+  /** Content zoom relative to default fit. 1 = 100%. */
+  scale?: number
   textAnnotations?: PageTextAnnotation[]
   drawStrokes?: DrawStroke[]
 }

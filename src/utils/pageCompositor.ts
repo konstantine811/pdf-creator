@@ -1,5 +1,5 @@
 import type { DrawStroke, FitMode, PageItem, PageTextAnnotation } from '../types'
-import { drawImageRotatedFit } from './pageRotation'
+import { drawImageRotatedFit, normalizeRotation } from './pageRotation'
 import { A4 } from './pageSizes'
 
 export interface ContentRect {
@@ -49,10 +49,16 @@ function resolvePageDimensions(
   if (fitMode === 'a4-fit') {
     return { width: A4.width, height: A4.height }
   }
-  if (page.width && page.height) {
-    return { width: page.width, height: page.height }
+
+  const rotation = normalizeRotation(page.rotation ?? 0)
+  const baseWidth = page.width ?? imageWidth
+  const baseHeight = page.height ?? imageHeight
+
+  if (rotation === 90 || rotation === 270) {
+    return { width: baseHeight, height: baseWidth }
   }
-  return { width: imageWidth, height: imageHeight }
+
+  return { width: baseWidth, height: baseHeight }
 }
 
 export function drawTextAnnotations(
@@ -137,9 +143,15 @@ export async function compositePageContent(
 ): Promise<string> {
   const hasRotation = normalizePageRotation(page.rotation) !== 0
   const hasAnnotations = pageHasAnnotations(page)
+  const fillImageToA4 = page.type === 'image' && fitMode === 'a4-fit'
+  const contentScale = page.scale ?? 1
+  const hasCustomScale = Math.abs(contentScale - 1) > 0.001
 
-  if (!hasRotation && !hasAnnotations) return baseDataUrl
-  if (!hasRotation && hasAnnotations && !includeAnnotations) return baseDataUrl
+  // Photos on A4 always composite with cover so they fill the page.
+  if (!hasRotation && !fillImageToA4 && !hasCustomScale) {
+    if (!hasAnnotations) return baseDataUrl
+    if (!includeAnnotations) return baseDataUrl
+  }
 
   const img = await loadImage(baseDataUrl)
   const pageSize = resolvePageDimensions(page, fitMode, img.width, img.height)
@@ -161,6 +173,8 @@ export async function compositePageContent(
     page.rotation ?? 0,
     img.width,
     img.height,
+    fillImageToA4 ? 'cover' : 'contain',
+    contentScale,
   )
 
   if (includeAnnotations && hasAnnotations) {
@@ -171,8 +185,7 @@ export async function compositePageContent(
 }
 
 function normalizePageRotation(rotation?: number): number {
-  if (!rotation) return 0
-  return ((rotation % 360) + 360) % 360
+  return normalizeRotation(rotation ?? 0)
 }
 
 export async function renderAnnotatedPageToPngBytes(

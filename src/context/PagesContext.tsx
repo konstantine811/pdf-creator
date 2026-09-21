@@ -42,6 +42,7 @@ interface PagesContextValue {
   handleClear: () => void
   handleExport: () => Promise<void>
   rotatePage: (id: string, delta: number) => void
+  scalePage: (id: string, delta: number) => void
   updatePageAnnotations: (
     id: string,
     patch: {
@@ -161,6 +162,17 @@ export function PagesProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  const scalePage = useCallback((id: string, delta: number) => {
+    clearPageRenderCache([id])
+    setPages((current) =>
+      current.map((page) => {
+        if (page.id !== id) return page
+        const next = Math.round(((page.scale ?? 1) + delta) * 100) / 100
+        return { ...page, scale: Math.min(4, Math.max(0.25, next)) }
+      }),
+    )
+  }, [])
+
   const updatePageAnnotations = useCallback(
     (
       id: string,
@@ -228,6 +240,7 @@ export function PagesProvider({ children }: { children: ReactNode }) {
       handleClear,
       handleExport,
       rotatePage,
+      scalePage,
       updatePageAnnotations,
     }),
     [
@@ -247,6 +260,7 @@ export function PagesProvider({ children }: { children: ReactNode }) {
       handleClear,
       handleExport,
       rotatePage,
+      scalePage,
       updatePageAnnotations,
     ],
   )

@@ -2,6 +2,8 @@ export function normalizeRotation(degrees: number): number {
   return ((degrees % 360) + 360) % 360
 }
 
+export type ImageFitMode = 'contain' | 'cover'
+
 export function getRotatedAspectRatio(
   width: number,
   height: number,
@@ -22,10 +24,15 @@ export function drawImageRotatedFit(
   rotationDeg: number,
   imageWidth: number,
   imageHeight: number,
+  fit: ImageFitMode = 'contain',
+  contentScale = 1,
 ): void {
   const rotation = normalizeRotation(rotationDeg)
+  const zoom = Number.isFinite(contentScale) && contentScale > 0 ? contentScale : 1
+  const scaleFn = fit === 'cover' ? Math.max : Math.min
+
   if (rotation === 0) {
-    const scale = Math.min(containerWidth / imageWidth, containerHeight / imageHeight)
+    const scale = scaleFn(containerWidth / imageWidth, containerHeight / imageHeight) * zoom
     const width = imageWidth * scale
     const height = imageHeight * scale
     const x = (containerWidth - width) / 2
@@ -39,7 +46,7 @@ export function drawImageRotatedFit(
   const sin = Math.abs(Math.sin(rad))
   const bboxWidth = imageWidth * cos + imageHeight * sin
   const bboxHeight = imageWidth * sin + imageHeight * cos
-  const scale = Math.min(containerWidth / bboxWidth, containerHeight / bboxHeight)
+  const scale = scaleFn(containerWidth / bboxWidth, containerHeight / bboxHeight) * zoom
   const drawWidth = imageWidth * scale
   const drawHeight = imageHeight * scale
 
