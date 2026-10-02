@@ -1,11 +1,7 @@
-import * as pdfjs from 'pdfjs-dist'
+import { createPdfDocumentOptions, pdfjs } from './pdfjs'
 import type { LoadProgress, PageItem } from '../types'
 import { convertHeicToJpeg, isHeicFile } from './heic'
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString()
 
 const THUMBNAIL_MAX_SIDE = 240
 
@@ -146,7 +142,7 @@ async function renderPdfPageThumbnail(
   pdfBytes: Uint8Array,
   pageIndex: number,
 ): Promise<{ thumbnailUrl: string; width: number; height: number }> {
-  const loadingTask = pdfjs.getDocument({ data: pdfBytes.slice() })
+  const loadingTask = pdfjs.getDocument(createPdfDocumentOptions(pdfBytes))
   const pdf = await loadingTask.promise
   const page = await pdf.getPage(pageIndex + 1)
   const viewportFull = page.getViewport({ scale: 1 })
@@ -223,7 +219,7 @@ async function estimateWorkUnits(files: File[]): Promise<{
     if (isPdfFile(file)) {
       supported.push(file)
       const pdfBytes = new Uint8Array(await file.arrayBuffer())
-      const loadingTask = pdfjs.getDocument({ data: pdfBytes.slice() })
+      const loadingTask = pdfjs.getDocument(createPdfDocumentOptions(pdfBytes))
       const pdf = await loadingTask.promise
       pdfPageCounts.set(file.name + file.size + file.lastModified, pdf.numPages)
       totalUnits += Math.max(pdf.numPages, 1)
@@ -280,7 +276,7 @@ export async function loadPagesFromFiles(
       const key = file.name + file.size + file.lastModified
       const pageCount =
         pdfPageCounts.get(key) ??
-        (await pdfjs.getDocument({ data: pdfBytes.slice() }).promise).numPages
+        (await pdfjs.getDocument(createPdfDocumentOptions(pdfBytes)).promise).numPages
 
       for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
         reportProgress(

@@ -1,6 +1,7 @@
-import * as pdfjs from 'pdfjs-dist'
+import { createPdfDocumentOptions, pdfjs } from './pdfjs'
 import type { FitMode, PageItem } from '../types'
 import { compositePageContent } from './pageCompositor'
+
 
 const renderCache = new Map<string, string>()
 
@@ -17,7 +18,7 @@ async function renderPdfPage(
   pageIndex: number,
   targetWidth: number,
 ): Promise<string> {
-  const loadingTask = pdfjs.getDocument({ data: pdfBytes.slice() })
+  const loadingTask = pdfjs.getDocument(createPdfDocumentOptions(pdfBytes))
   const pdf = await loadingTask.promise
   const page = await pdf.getPage(pageIndex + 1)
   const viewportFull = page.getViewport({ scale: 1 })
